@@ -1,0 +1,7 @@
+[workspace]
+resolver = "3"
+members = ["tnn-core", "tnn-examples", "tnn-nn", "tnn-optim", "tnn-tests"]
+
+
+[workspace.dependencies] 
+ndarray = "0.17.1"
