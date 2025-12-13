@@ -1,10 +1,8 @@
 use tnn_core::tensor::Tensor;
-use ndarray::Axis;
-
 
 fn main() {
-    let tensor = Tensor::zeros(&[2,3]);
-    println!("{:?}",tensor.data);
-    let data = tensor.data.select(Axis(0), &[0]);
-    println!("{:?}",tensor.data.view());
+    let mut t1 = Tensor::from(&[2, 2], [1., 2., 3., 4.].to_vec());
+    let t2 = Tensor::from(&[3, 2], [1., 2., 3., 4., 3., 4.].to_vec());
+
+    t1.add(t2);
 }
