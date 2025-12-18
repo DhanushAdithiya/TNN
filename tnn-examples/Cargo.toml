@@ -6,3 +6,5 @@ edition = "2024"
 [dependencies]
 tnn-core = {path="../tnn-core"}
 ndarray = {workspace=true}  
+rand = "0.9.2"
+num-traits = "0.2.19"

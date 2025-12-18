@@ -56,7 +56,8 @@ fn test_matmul() {
     let t1 = Tensor::from(&[2, 2], data1);
     let t2 = Tensor::from(&[2, 2], data2);
 
-    let t3 = t1.matmul(t2);
+    let t3 = t1.matmul(t2).unwrap();
+
     assert_eq!(
         t3.data.view(),
         array![[7., 10.], [15., 22.]].view().into_dyn()
@@ -65,13 +66,11 @@ fn test_matmul() {
 
 #[test]
 fn test_matmul2() {
-    // A 6×6 matrix
     let data1 = vec![
         1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15., 16., 17., 18., 19., 20.,
         21., 22., 23., 24., 25., 26., 27., 28., 29., 30., 31., 32., 33., 34., 35., 36.,
     ];
 
-    // Another 6×6 matrix
     let data2 = vec![
         6., 5., 4., 3., 2., 1., 12., 11., 10., 9., 8., 7., 18., 17., 16., 15., 14., 13., 24., 23.,
         22., 21., 20., 19., 30., 29., 28., 27., 26., 25., 36., 35., 34., 33., 32., 31.,
@@ -80,7 +79,7 @@ fn test_matmul2() {
     let t1 = Tensor::from(&[6, 6], data1);
     let t2 = Tensor::from(&[6, 6], data2);
 
-    let t3 = t1.matmul(t2);
+    let t3 = t1.matmul(t2).unwrap();
 
     let expected = array![
         [546., 525., 504., 483., 462., 441.],
@@ -96,15 +95,12 @@ fn test_matmul2() {
 }
 
 #[test]
-#[should_panic]
 fn test_matmul_fail() {
-    // A 6×6 matrix
     let data1 = vec![
         7., 8., 9., 10., 11., 12., 13., 14., 15., 16., 17., 18., 19., 20., 21., 22., 23., 24., 25.,
         26., 27., 28., 29., 30., 31., 32., 33., 34., 35., 36.,
     ];
 
-    // Another 6×6 matrix
     let data2 = vec![
         6., 5., 4., 3., 2., 1., 12., 11., 10., 9., 8., 7., 18., 17., 16., 15., 14., 13., 24., 23.,
         22., 21., 20., 19., 30., 29., 28., 27., 26., 25., 36., 35., 34., 33., 32., 31.,
@@ -113,7 +109,9 @@ fn test_matmul_fail() {
     let t1 = Tensor::from(&[5, 6], data1);
     let t2 = Tensor::from(&[6, 6], data2);
 
-    let _t3 = t1.matmul(t2);
+    let result = t1.matmul(t2);
+
+    assert!(result.is_err());
 }
 
 #[test]

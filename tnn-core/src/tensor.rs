@@ -1,12 +1,47 @@
+use ndarray::s;
+use ndarray::IxDyn;
 use ndarray::{Array, ArrayD};
 use std::f32::consts::E;
+use std::fmt;
 use std::usize;
 
+#[derive(Clone, Debug)]
+pub struct ShapeError {
+    left: Vec<usize>,
+    right: Vec<usize>,
+}
+
+impl fmt::Display for ShapeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Matrices of invalid size {:?}-{:?}",
+            self.left, self.right
+        )
+    }
+}
+
+impl std::error::Error for ShapeError {}
+
+#[derive(Clone)]
 pub struct Tensor {
     pub data: ArrayD<f32>,
 }
 
 impl Tensor {
+    fn check_compatible(first: &Tensor, second: &Tensor) -> Result<(), ShapeError> {
+        // FIX : Dont need to send the entire tensor here, only the shapes would do
+
+        if first.shape()[0] != second.shape()[1] {
+            return Err(ShapeError {
+                left: first.shape().to_vec(),
+                right: second.shape().to_vec(),
+            });
+        }
+
+        return Ok(());
+    }
+
     pub fn from(shape: &[usize], data: Vec<f32>) -> Tensor {
         let data = Array::from_shape_vec(shape, data).expect("Shape doesnt match data");
         return Tensor { data };
@@ -27,25 +62,43 @@ impl Tensor {
             .expect("Could not recast due to shape error");
     }
 
-    pub fn matmul(&self, other: Tensor) -> Tensor {
-        assert_eq!(
-            self.shape()[0],
-            other.shape()[1],
-            "Cannot matrix multiply matrices of shapes {}, {}",
-            self.shape()[0],
-            other.shape()[1]
-        );
+    pub fn matmul(&self, other: Tensor) -> Result<Tensor, ShapeError> {
+        match Tensor::check_compatible(&self, &other) {
+            Ok(()) => {
+                let mut data = Vec::new();
 
-        let mut data = Vec::new();
+                for rows in self.data.rows() {
+                    for cols in other.data.columns() {
+                        let val: f32 = std::iter::zip(rows, cols).map(|(a, b)| *a * *b).sum();
+                        data.push(val);
+                    }
+                }
 
-        for rows in self.data.rows() {
-            for cols in other.data.columns() {
-                let val: f32 = std::iter::zip(rows, cols).map(|(a, b)| *a * *b).sum();
-                data.push(val);
+                return Ok(Tensor::from(&[self.shape()[0], other.shape()[1]], data));
+            }
+
+            Err(e) => {
+                eprintln!("Could not multiply matrices");
+                return Err(e);
             }
         }
+    }
 
-        return Tensor::from(&[self.shape()[0], other.shape()[1]], data);
+    fn mm(first: Tensor, second: Tensor) -> Result<Tensor, ShapeError> {
+        // make them square matrix
+        let n = std::cmp::max(first.shape()[0], second.shape()[0]);
+        let pf = first.pad_matrix(n);
+        let ps = second.pad_matrix(n);
+    }
+
+    fn pad_matrix(&self, pad_size: usize) -> Tensor {
+        let rows = self.shape()[0];
+        let cols = self.shape()[1];
+        let mut padded = Array::<f32, IxDyn>::zeros(IxDyn(&[pad_size, pad_size]));
+        let mut view = padded.slice_mut(s![0..rows, 0..cols]);
+        view.assign(&self.data);
+
+        return Tensor { data: padded };
     }
 
     pub fn add(&mut self, other: Tensor) -> Tensor {
