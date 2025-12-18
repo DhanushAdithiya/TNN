@@ -65,10 +65,11 @@ impl Tensor {
     pub fn matmul(&self, other: Tensor) -> Result<Tensor, ShapeError> {
         match Tensor::check_compatible(&self, &other) {
             Ok(()) => {
+                let other = other.data.reversed_axes().to_owned();
                 let mut data = Vec::new();
 
-                for rows in self.data.rows() {
-                    for cols in other.data.columns() {
+                for cols in other.rows() {
+                    for rows in self.data.rows() {
                         let val: f32 = std::iter::zip(rows, cols).map(|(a, b)| *a * *b).sum();
                         data.push(val);
                     }
@@ -82,23 +83,6 @@ impl Tensor {
                 return Err(e);
             }
         }
-    }
-
-    fn mm(first: Tensor, second: Tensor) -> Result<Tensor, ShapeError> {
-        // make them square matrix
-        let n = std::cmp::max(first.shape()[0], second.shape()[0]);
-        let pf = first.pad_matrix(n);
-        let ps = second.pad_matrix(n);
-    }
-
-    fn pad_matrix(&self, pad_size: usize) -> Tensor {
-        let rows = self.shape()[0];
-        let cols = self.shape()[1];
-        let mut padded = Array::<f32, IxDyn>::zeros(IxDyn(&[pad_size, pad_size]));
-        let mut view = padded.slice_mut(s![0..rows, 0..cols]);
-        view.assign(&self.data);
-
-        return Tensor { data: padded };
     }
 
     pub fn add(&mut self, other: Tensor) -> Tensor {
