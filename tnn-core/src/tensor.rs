@@ -1,5 +1,6 @@
-use ndarray::s;
+use ndarray::Array2;
 use ndarray::IxDyn;
+use ndarray::ShapeBuilder;
 use ndarray::{Array, ArrayD};
 use std::f32::consts::E;
 use std::fmt;
@@ -62,15 +63,26 @@ impl Tensor {
             .expect("Could not recast due to shape error");
     }
 
+    fn to_column_major(a: &ArrayD<f32>) -> ArrayD<f32> {
+        let dims = a.dim();
+        let mut col_major = ArrayD::<f32>::zeros(dims.f()); // Fortran / column-major layout
+        col_major.assign(a); // copies data, changing layout
+        col_major
+    }
+
     pub fn matmul(&self, other: Tensor) -> Result<Tensor, ShapeError> {
         match Tensor::check_compatible(&self, &other) {
             Ok(()) => {
-                let other = other.data.reversed_axes().to_owned();
                 let mut data = Vec::new();
-
-                for cols in other.rows() {
-                    for rows in self.data.rows() {
-                        let val: f32 = std::iter::zip(rows, cols).map(|(a, b)| *a * *b).sum();
+                let other = Tensor::to_column_major(&other.data);
+                for rows in self.data.rows() {
+                    for cols in other.axis_iter(ndarray::Axis(1)).to_owned() {
+                        //println!("transposed - {:?}", cols);
+                        //for val in &cols {
+                        //    let addr: *const f32 = val as *const f32;
+                        //    println!("Address : {:p}", addr);
+                        //}
+                        let val: f32 = std::iter::zip(rows, &cols).map(|(a, b)| *a * *b).sum();
                         data.push(val);
                     }
                 }

@@ -47,4 +47,12 @@ fn benchmark_matmul() {
 
 fn main() {
     benchmark_matmul();
+
+    //let t1 = random_tensor(&[2, 2]);
+    //let t2 = random_tensor(&[2, 2]);
+    //
+    //println!("TENSOR 1 - {:?}", t1.data);
+    //println!("TENSOR 2 - {:?}", t2.data);
+    //
+    //let t3 = t1.matmul(t2);
 }
