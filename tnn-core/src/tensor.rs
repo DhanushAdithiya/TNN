@@ -1,5 +1,3 @@
-use ndarray::Array2;
-use ndarray::IxDyn;
 use ndarray::ShapeBuilder;
 use ndarray::{Array, ArrayD};
 use std::f32::consts::E;
@@ -27,6 +25,7 @@ impl std::error::Error for ShapeError {}
 #[derive(Clone)]
 pub struct Tensor {
     pub data: ArrayD<f32>,
+    pub column_major: bool,
 }
 
 impl Tensor {
@@ -43,9 +42,21 @@ impl Tensor {
         return Ok(());
     }
 
-    pub fn from(shape: &[usize], data: Vec<f32>) -> Tensor {
-        let data = Array::from_shape_vec(shape, data).expect("Shape doesnt match data");
-        return Tensor { data };
+    pub fn from(shape: &[usize], data: Vec<f32>, col_major: bool) -> Tensor {
+        let mut data = Array::from_shape_vec(shape, data).expect("Shape doesnt match data");
+
+        if col_major {
+            data = Tensor::to_column_major(&data);
+            return Tensor {
+                data,
+                column_major: true,
+            };
+        }
+
+        return Tensor {
+            data,
+            column_major: false,
+        };
     }
 
     pub fn shape(&self) -> &[usize] {
@@ -54,13 +65,20 @@ impl Tensor {
 
     pub fn zeros(shape: &[usize]) -> Tensor {
         let len = shape[0] * shape[1];
-        return Tensor::from(shape, vec![0.0; len]);
+        return Tensor::from(shape, vec![0.0; len], true);
     }
 
     pub fn reshape(&mut self, shape: &[usize]) {
         let data: Vec<f32> = self.data.clone().into_iter().collect();
         self.data = Array::from_shape_vec(shape, data.to_owned())
             .expect("Could not recast due to shape error");
+    }
+
+    fn to_contiguous(a: &ArrayD<f32>) -> ArrayD<f32> {
+        if let Some(_) = a.as_slice() {
+            return a.clone();
+        };
+        return a.to_owned();
     }
 
     fn to_column_major(a: &ArrayD<f32>) -> ArrayD<f32> {
@@ -71,30 +89,36 @@ impl Tensor {
     }
 
     pub fn matmul(&self, other: Tensor) -> Result<Tensor, ShapeError> {
-        match Tensor::check_compatible(&self, &other) {
-            Ok(()) => {
-                let mut data = Vec::new();
-                let other = Tensor::to_column_major(&other.data);
-                for rows in self.data.rows() {
-                    for cols in other.axis_iter(ndarray::Axis(1)).to_owned() {
-                        //println!("transposed - {:?}", cols);
-                        //for val in &cols {
-                        //    let addr: *const f32 = val as *const f32;
-                        //    println!("Address : {:p}", addr);
-                        //}
-                        let val: f32 = std::iter::zip(rows, &cols).map(|(a, b)| *a * *b).sum();
-                        data.push(val);
-                    }
+        Tensor::check_compatible(self, &other)?;
+
+        let a = Tensor::to_contiguous(&self.data);
+        let b = Tensor::to_contiguous(&other.data);
+
+        let m = self.shape()[0]; // rows of A
+        let k = self.shape()[1]; // cols of A = rows of B
+        let n = other.shape()[1]; // cols of B
+
+        let a_slice = a.as_slice().unwrap();
+        let b_slice = b.as_slice().unwrap();
+
+        let mut out = vec![0.0f32; m * n];
+
+        // i-k-j loop (best cache behavior)
+        for i in 0..m {
+            let out_row = &mut out[i * n..(i + 1) * n];
+            let a_row = &a_slice[i * k..(i + 1) * k];
+
+            for kk in 0..k {
+                let a_val = a_row[kk];
+                let b_row = &b_slice[kk * n..(kk + 1) * n];
+
+                for j in 0..n {
+                    out_row[j] += a_val * b_row[j];
                 }
-
-                return Ok(Tensor::from(&[self.shape()[0], other.shape()[1]], data));
-            }
-
-            Err(e) => {
-                eprintln!("Could not multiply matrices");
-                return Err(e);
             }
         }
+
+        Ok(Tensor::from(&[m, n], out, false))
     }
 
     pub fn add(&mut self, other: Tensor) -> Tensor {
@@ -108,7 +132,10 @@ impl Tensor {
 
         let mut t_clone = self.data.clone();
         t_clone.scaled_add(1., &other.data);
-        return Tensor { data: t_clone };
+        return Tensor {
+            data: t_clone,
+            column_major: true,
+        };
     }
 
     pub fn relu(&mut self) {

@@ -12,7 +12,7 @@ fn random_tensor(shape: &[usize]) -> Tensor {
     let mut rng = rand::rng();
     let size: usize = shape.iter().product();
     let data: Vec<f32> = (0..size).map(|_| rng.random()).collect();
-    Tensor::from(shape, data)
+    Tensor::from(shape, data, false)
 }
 fn matmul_flops(m: usize, k: usize, n: usize) -> f64 {
     2.0 * m as f64 * k as f64 * n as f64
