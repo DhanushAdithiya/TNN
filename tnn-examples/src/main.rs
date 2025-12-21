@@ -48,11 +48,12 @@ fn benchmark_matmul() {
 fn main() {
     benchmark_matmul();
 
-    //let t1 = random_tensor(&[2, 2]);
-    //let t2 = random_tensor(&[2, 2]);
+    //let t1 = random_tensor(&[4, 4]);
+    //let t2 = random_tensor(&[4, 4]);
     //
     //println!("TENSOR 1 - {:?}", t1.data);
     //println!("TENSOR 2 - {:?}", t2.data);
     //
-    //let t3 = t1.matmul(t2);
+    //let t3 = t1.matmul(t2).unwrap();
+    //println!("FINAL - {:?}", t3.data);
 }

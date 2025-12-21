@@ -1,8 +1,13 @@
-use ndarray::ShapeBuilder;
+use ndarray::{s, ShapeBuilder};
 use ndarray::{Array, ArrayD};
 use std::f32::consts::E;
 use std::fmt;
+use std::thread;
 use std::usize;
+
+// TODO
+// [] - Remove Column Order
+// [] - Change ReLu , Add to use array slices
 
 #[derive(Clone, Debug)]
 pub struct ShapeError {
@@ -88,37 +93,99 @@ impl Tensor {
         col_major
     }
 
-    pub fn matmul(&self, other: Tensor) -> Result<Tensor, ShapeError> {
-        Tensor::check_compatible(self, &other)?;
-
-        let a = Tensor::to_contiguous(&self.data);
-        let b = Tensor::to_contiguous(&other.data);
-
-        let m = self.shape()[0]; // rows of A
-        let k = self.shape()[1]; // cols of A = rows of B
-        let n = other.shape()[1]; // cols of B
-
-        let a_slice = a.as_slice().unwrap();
-        let b_slice = b.as_slice().unwrap();
-
-        let mut out = vec![0.0f32; m * n];
-
-        // i-k-j loop (best cache behavior)
+    pub fn block_mul_at(
+        a: &[f32],
+        b: &[f32],
+        out_ptr: &mut [f32],
+        m: usize,
+        k: usize,
+        n: usize,
+        total_stride: usize,
+    ) {
         for i in 0..m {
-            let out_row = &mut out[i * n..(i + 1) * n];
-            let a_row = &a_slice[i * k..(i + 1) * k];
+            let a_row = &a[i * k..(i + 1) * k];
+            let row_start = i * total_stride;
+            // Get a mutable slice for the specific row segment we are working on
+            let out_row = &mut out_ptr[row_start..row_start + n];
 
-            for kk in 0..k {
-                let a_val = a_row[kk];
-                let b_row = &b_slice[kk * n..(kk + 1) * n];
+            for j in 0..k {
+                let a_val = a_row[j];
+                let b_row = &b[j * n..(j + 1) * n];
 
-                for j in 0..n {
-                    out_row[j] += a_val * b_row[j];
+                for l in 0..n {
+                    out_row[l] += a_val * b_row[l];
                 }
             }
         }
+    }
 
-        Ok(Tensor::from(&[m, n], out, false))
+    pub fn matmul(&self, other: Tensor) -> Result<Tensor, ShapeError> {
+        Tensor::check_compatible(self, &other)?;
+
+        let m = self.shape()[0];
+        let k = self.shape()[1];
+        let n = other.shape()[1];
+
+        let mut out_data = vec![0.0f32; m * n];
+
+        let m_mid = m / 2;
+        let k_mid = k / 2;
+        let n_mid = n / 2;
+
+        // --- Prepare Contiguous Slices for A and B ---
+        // We to_owned() these to ensure they are contiguous slices for block_mul_at
+        let a11 = self.data.slice(s![0..m_mid, 0..k_mid]).to_owned();
+        let a12 = self.data.slice(s![0..m_mid, k_mid..]).to_owned();
+        let a21 = self.data.slice(s![m_mid.., 0..k_mid]).to_owned();
+        let a22 = self.data.slice(s![m_mid.., k_mid..]).to_owned();
+
+        let b11 = other.data.slice(s![0..k_mid, 0..n_mid]).to_owned();
+        let b12 = other.data.slice(s![0..k_mid, n_mid..]).to_owned();
+        let b21 = other.data.slice(s![k_mid.., 0..n_mid]).to_owned();
+        let b22 = other.data.slice(s![k_mid.., n_mid..]).to_owned();
+
+        // Convert to slices once to avoid calling as_slice() repeatedly inside threads
+        let a11_s = a11.as_slice().unwrap();
+        let a12_s = a12.as_slice().unwrap();
+        let a21_s = a21.as_slice().unwrap();
+        let a22_s = a22.as_slice().unwrap();
+
+        let b11_s = b11.as_slice().unwrap();
+        let b12_s = b12.as_slice().unwrap();
+        let b21_s = b21.as_slice().unwrap();
+        let b22_s = b22.as_slice().unwrap();
+
+        // 1. Split into Top rows and Bottom rows
+        // This is the key to satisfying the borrow checker for 2 threads
+        let (top_rows, bottom_rows) = out_data.split_at_mut(m_mid * n);
+
+        thread::scope(|s| {
+            // --- Thread 1: Handles Top Half (C11 and C12) ---
+            s.spawn(|| {
+                // C11 = A11*B11 + A12*B21
+                Self::block_mul_at(a11_s, b11_s, top_rows, m_mid, k_mid, n_mid, n);
+                Self::block_mul_at(a12_s, b21_s, top_rows, m_mid, k - k_mid, n_mid, n);
+
+                // C12 = A11*B12 + A12*B22
+                let c12_view = &mut top_rows[n_mid..];
+                Self::block_mul_at(a11_s, b12_s, c12_view, m_mid, k_mid, n - n_mid, n);
+                Self::block_mul_at(a12_s, b22_s, c12_view, m_mid, k - k_mid, n - n_mid, n);
+            });
+
+            // --- Thread 2: Handles Bottom Half (C21 and C22) ---
+            s.spawn(|| {
+                // C21 = A21*B11 + A22*B21
+                Self::block_mul_at(a21_s, b11_s, bottom_rows, m - m_mid, k_mid, n_mid, n);
+                Self::block_mul_at(a22_s, b21_s, bottom_rows, m - m_mid, k - k_mid, n_mid, n);
+
+                // C22 = A21*B12 + A22*B22
+                let c22_view = &mut bottom_rows[n_mid..];
+                Self::block_mul_at(a21_s, b12_s, c22_view, m - m_mid, k_mid, n - n_mid, n);
+                Self::block_mul_at(a22_s, b22_s, c22_view, m - m_mid, k - k_mid, n - n_mid, n);
+            });
+        });
+
+        Ok(Tensor::from(&[m, n], out_data, false))
     }
 
     pub fn add(&mut self, other: Tensor) -> Tensor {
