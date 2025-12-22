@@ -2,9 +2,9 @@ use rand::Rng;
 use std::time::Instant;
 use tnn_core::tensor::Tensor;
 
-const M: usize = 512;
-const K: usize = 512;
-const N: usize = 512;
+const M: usize = 2048;
+const K: usize = 2048;
+const N: usize = 2048;
 const WARMUP_RUNS: usize = 1;
 const MEASURE_RUNS: usize = 5;
 
@@ -48,12 +48,12 @@ fn benchmark_matmul() {
 fn main() {
     benchmark_matmul();
 
-    //let t1 = random_tensor(&[4, 4]);
-    //let t2 = random_tensor(&[4, 4]);
+    //let t1 = random_tensor(&[3, 3]);
+    //let t2 = random_tensor(&[3, 3]);
     //
     //println!("TENSOR 1 - {:?}", t1.data);
     //println!("TENSOR 2 - {:?}", t2.data);
     //
     //let t3 = t1.matmul(t2).unwrap();
-    //println!("FINAL - {:?}", t3.data);
+    //println!("t3 - {:?}", t3.data);
 }

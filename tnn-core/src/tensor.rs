@@ -119,6 +119,24 @@ impl Tensor {
         }
     }
 
+    pub fn block_mul_at_test(
+        a: &[f32],
+        b: &[f32],
+        out_ptr: &mut ndarray::ArrayViewMut2<'_, f32>,
+        m: usize,
+        k: usize,
+        n: usize,
+    ) {
+        for i in 0..m {
+            for j in 0..k {
+                let a_val = a[i * k + j];
+                for l in 0..n {
+                    out_ptr[[i, l]] += a_val * b[j * n + l];
+                }
+            }
+        }
+    }
+
     pub fn matmul(&self, other: Tensor) -> Result<Tensor, ShapeError> {
         Tensor::check_compatible(self, &other)?;
 
@@ -158,34 +176,66 @@ impl Tensor {
         // 1. Split into Top rows and Bottom rows
         // This is the key to satisfying the borrow checker for 2 threads
         let (top_rows, bottom_rows) = out_data.split_at_mut(m_mid * n);
+        let mut test_out: Array<f32, _> = Array::zeros((m, n));
+
+        let (ttop, tb) = test_out.view_mut().split_at(ndarray::Axis(0), k_mid);
+        let (mut c11, mut c12) = ttop.split_at(ndarray::Axis(1), n_mid);
+        let (mut c21, mut c22) = tb.split_at(ndarray::Axis(1), n_mid);
 
         thread::scope(|s| {
-            // --- Thread 1: Handles Top Half (C11 and C12) ---
             s.spawn(|| {
-                // C11 = A11*B11 + A12*B21
-                Self::block_mul_at(a11_s, b11_s, top_rows, m_mid, k_mid, n_mid, n);
-                Self::block_mul_at(a12_s, b21_s, top_rows, m_mid, k - k_mid, n_mid, n);
-
-                // C12 = A11*B12 + A12*B22
-                let c12_view = &mut top_rows[n_mid..];
-                Self::block_mul_at(a11_s, b12_s, c12_view, m_mid, k_mid, n - n_mid, n);
-                Self::block_mul_at(a12_s, b22_s, c12_view, m_mid, k - k_mid, n - n_mid, n);
+                Tensor::block_mul_at_test(a11_s, b11_s, &mut c11, m_mid, k_mid, n_mid);
+                Tensor::block_mul_at_test(a12_s, b21_s, &mut c11, m_mid, k - k_mid, n_mid);
             });
 
-            // --- Thread 2: Handles Bottom Half (C21 and C22) ---
             s.spawn(|| {
-                // C21 = A21*B11 + A22*B21
-                Self::block_mul_at(a21_s, b11_s, bottom_rows, m - m_mid, k_mid, n_mid, n);
-                Self::block_mul_at(a22_s, b21_s, bottom_rows, m - m_mid, k - k_mid, n_mid, n);
+                Tensor::block_mul_at_test(a11_s, b12_s, &mut c12, m_mid, k_mid, n - n_mid);
+                Tensor::block_mul_at_test(a12_s, b22_s, &mut c12, m_mid, k - k_mid, n - n_mid);
+            });
 
-                // C22 = A21*B12 + A22*B22
-                let c22_view = &mut bottom_rows[n_mid..];
-                Self::block_mul_at(a21_s, b12_s, c22_view, m - m_mid, k_mid, n - n_mid, n);
-                Self::block_mul_at(a22_s, b22_s, c22_view, m - m_mid, k - k_mid, n - n_mid, n);
+            s.spawn(|| {
+                Tensor::block_mul_at_test(a21_s, b11_s, &mut c21, m - m_mid, k_mid, n_mid);
+                Tensor::block_mul_at_test(a22_s, b21_s, &mut c21, m - m_mid, k - k_mid, n_mid);
+            });
+
+            s.spawn(|| {
+                Tensor::block_mul_at_test(a21_s, b12_s, &mut c22, m - m_mid, k_mid, n - n_mid);
+                Tensor::block_mul_at_test(a22_s, b22_s, &mut c22, m - m_mid, k - k_mid, n - n_mid);
             });
         });
 
-        Ok(Tensor::from(&[m, n], out_data, false))
+        //println!("FINAL? - {:?}", test_out);
+
+        //thread::scope(|s| {
+        //    // --- Thread 1: Handles Top Half (C11 and C12) ---
+        //    s.spawn(|| {
+        //        // C11 = A11*B11 + A12*B21
+        //        Self::block_mul_at(a11_s, b11_s, top_rows, m_mid, k_mid, n_mid, n);
+        //        Self::block_mul_at(a12_s, b21_s, top_rows, m_mid, k - k_mid, n_mid, n);
+        //
+        //        // C12 = A11*B12 + A12*B22
+        //        let c12_view = &mut top_rows[n_mid..];
+        //        Self::block_mul_at(a11_s, b12_s, c12_view, m_mid, k_mid, n - n_mid, n);
+        //        Self::block_mul_at(a12_s, b22_s, c12_view, m_mid, k - k_mid, n - n_mid, n);
+        //    });
+        //
+        //    // --- Thread 2: Handles Bottom Half (C21 and C22) ---
+        //    s.spawn(|| {
+        //        // C21 = A21*B11 + A22*B21
+        //        Self::block_mul_at(a21_s, b11_s, bottom_rows, m - m_mid, k_mid, n_mid, n);
+        //        Self::block_mul_at(a22_s, b21_s, bottom_rows, m - m_mid, k - k_mid, n_mid, n);
+        //
+        //        // C22 = A21*B12 + A22*B22
+        //        let c22_view = &mut bottom_rows[n_mid..];
+        //        Self::block_mul_at(a21_s, b12_s, c22_view, m - m_mid, k_mid, n - n_mid, n);
+        //        Self::block_mul_at(a22_s, b22_s, c22_view, m - m_mid, k - k_mid, n - n_mid, n);
+        //    });
+        //});
+
+        return Ok(Tensor {
+            data: test_out.into_dyn(),
+            column_major: false,
+        });
     }
 
     pub fn add(&mut self, other: Tensor) -> Tensor {
