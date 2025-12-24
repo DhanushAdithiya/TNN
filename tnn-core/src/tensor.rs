@@ -2,12 +2,15 @@ use ndarray::{s, ShapeBuilder};
 use ndarray::{Array, ArrayD};
 use std::f32::consts::E;
 use std::fmt;
+use std::simd;
 use std::thread;
 use std::usize;
 
 // TODO
 // [] - Remove Column Order
 // [] - Change ReLu , Add to use array slices
+// [] - Lot of dirty variables and unwraps
+// [] - Better Error Handling
 
 #[derive(Clone, Debug)]
 pub struct ShapeError {
@@ -79,6 +82,7 @@ impl Tensor {
             .expect("Could not recast due to shape error");
     }
 
+    #[allow(dead_code)]
     fn to_contiguous(a: &ArrayD<f32>) -> ArrayD<f32> {
         if let Some(_) = a.as_slice() {
             return a.clone();
@@ -119,6 +123,33 @@ impl Tensor {
         }
     }
 
+    fn simd_mul_slice<const N: usize>(a: &[f32], b: &[f32], result: &mut [f32])
+    where
+        simd::LaneCount<N>: simd::SupportedLaneCount,
+    {
+        let chunks_a = a.chunks_exact(N);
+        let chunks_b = b.chunks_exact(N);
+        for ((chunk_a, chunk_b), chunk_r) in chunks_a
+            .clone()
+            .zip(chunks_b.clone())
+            .zip(result.chunks_exact_mut(N))
+        {
+            let simd_a = simd::Simd::from_slice(chunk_a);
+            let simd_b = simd::Simd::from_slice(chunk_b);
+
+            let simd_mul = simd_a * simd_b;
+            simd_mul.copy_to_slice(chunk_r);
+        }
+
+        let rem_a = chunks_a.remainder();
+        let rem_b = chunks_b.remainder();
+        let rem_r = result.chunks_exact_mut(N).into_remainder();
+
+        for ((&a_val, &b_val), val_res) in rem_a.iter().zip(rem_b).zip(rem_r) {
+            *val_res += a_val * b_val;
+        }
+    }
+
     pub fn block_mul_at_test(
         a: &[f32],
         b: &[f32],
@@ -128,11 +159,15 @@ impl Tensor {
         n: usize,
     ) {
         for i in 0..m {
+            let out_row = out_ptr.slice_mut(s![i, ..]).into_slice().unwrap();
+
             for j in 0..k {
-                let a_val = a[i * k + j];
-                for l in 0..n {
-                    out_ptr[[i, l]] += a_val * b[j * n + l];
-                }
+                let b_row = &b[j * n..(j + 1) * n];
+                Tensor::simd_mul_slice::<32>(
+                    vec![a[i * k + j]; b_row.len()].as_slice(),
+                    b_row,
+                    out_row,
+                );
             }
         }
     }
@@ -143,8 +178,6 @@ impl Tensor {
         let m = self.shape()[0];
         let k = self.shape()[1];
         let n = other.shape()[1];
-
-        let mut out_data = vec![0.0f32; m * n];
 
         let m_mid = m / 2;
         let k_mid = k / 2;
@@ -175,7 +208,6 @@ impl Tensor {
 
         // 1. Split into Top rows and Bottom rows
         // This is the key to satisfying the borrow checker for 2 threads
-        let (top_rows, bottom_rows) = out_data.split_at_mut(m_mid * n);
         let mut test_out: Array<f32, _> = Array::zeros((m, n));
 
         let (ttop, tb) = test_out.view_mut().split_at(ndarray::Axis(0), k_mid);
@@ -203,34 +235,6 @@ impl Tensor {
                 Tensor::block_mul_at_test(a22_s, b22_s, &mut c22, m - m_mid, k - k_mid, n - n_mid);
             });
         });
-
-        //println!("FINAL? - {:?}", test_out);
-
-        //thread::scope(|s| {
-        //    // --- Thread 1: Handles Top Half (C11 and C12) ---
-        //    s.spawn(|| {
-        //        // C11 = A11*B11 + A12*B21
-        //        Self::block_mul_at(a11_s, b11_s, top_rows, m_mid, k_mid, n_mid, n);
-        //        Self::block_mul_at(a12_s, b21_s, top_rows, m_mid, k - k_mid, n_mid, n);
-        //
-        //        // C12 = A11*B12 + A12*B22
-        //        let c12_view = &mut top_rows[n_mid..];
-        //        Self::block_mul_at(a11_s, b12_s, c12_view, m_mid, k_mid, n - n_mid, n);
-        //        Self::block_mul_at(a12_s, b22_s, c12_view, m_mid, k - k_mid, n - n_mid, n);
-        //    });
-        //
-        //    // --- Thread 2: Handles Bottom Half (C21 and C22) ---
-        //    s.spawn(|| {
-        //        // C21 = A21*B11 + A22*B21
-        //        Self::block_mul_at(a21_s, b11_s, bottom_rows, m - m_mid, k_mid, n_mid, n);
-        //        Self::block_mul_at(a22_s, b21_s, bottom_rows, m - m_mid, k - k_mid, n_mid, n);
-        //
-        //        // C22 = A21*B12 + A22*B22
-        //        let c22_view = &mut bottom_rows[n_mid..];
-        //        Self::block_mul_at(a21_s, b12_s, c22_view, m - m_mid, k_mid, n - n_mid, n);
-        //        Self::block_mul_at(a22_s, b22_s, c22_view, m - m_mid, k - k_mid, n - n_mid, n);
-        //    });
-        //});
 
         return Ok(Tensor {
             data: test_out.into_dyn(),

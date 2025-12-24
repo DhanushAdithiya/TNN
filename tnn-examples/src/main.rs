@@ -48,8 +48,16 @@ fn benchmark_matmul() {
 fn main() {
     benchmark_matmul();
 
-    //let t1 = random_tensor(&[3, 3]);
-    //let t2 = random_tensor(&[3, 3]);
+    //let t1 = Tensor::from(
+    //    &[3, 3],
+    //    [1., 2., 3., 4., 5., 6., 7., 8., 9.].to_vec(),
+    //    false,
+    //);
+    //let t2 = Tensor::from(
+    //    &[3, 3],
+    //    [1., 2., 3., 4., 5., 6., 7., 8., 9.].to_vec(),
+    //    false,
+    //);
     //
     //println!("TENSOR 1 - {:?}", t1.data);
     //println!("TENSOR 2 - {:?}", t2.data);
