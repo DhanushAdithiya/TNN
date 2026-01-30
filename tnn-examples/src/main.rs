@@ -1,6 +1,6 @@
 use rand::Rng;
 use std::time::Instant;
-use tnn_core::tensor::Tensor;
+use tnn_core::raw_tensor::RawTensor;
 
 const M: usize = 2048;
 const K: usize = 2048;
@@ -8,11 +8,11 @@ const N: usize = 2048;
 const WARMUP_RUNS: usize = 1;
 const MEASURE_RUNS: usize = 5;
 
-fn random_tensor(shape: &[usize]) -> Tensor {
+fn random_tensor(shape: &[usize]) -> RawTensor {
     let mut rng = rand::rng();
     let size: usize = shape.iter().product();
     let data: Vec<f32> = (0..size).map(|_| rng.random()).collect();
-    Tensor::from(shape, data, false)
+    RawTensor::from(shape, data, false)
 }
 fn matmul_flops(m: usize, k: usize, n: usize) -> f64 {
     2.0 * m as f64 * k as f64 * n as f64
