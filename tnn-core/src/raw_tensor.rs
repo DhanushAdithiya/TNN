@@ -30,19 +30,11 @@ impl fmt::Display for ShapeError {
 
 impl std::error::Error for ShapeError {}
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RawTensor {
     pub data: ArrayD<f32>,
     pub column_major: bool,
 }
-
-#[derive(Clone)]
-struct AutogradNode {
-    parents: Vec<RawTensor>,
-    backwards: BackwardFn
-}
-
-type BackwardFn = fn(AutogradNode, AutogradNode, AutogradNode);
 
 impl RawTensor {
     fn check_compatible(first: &RawTensor, second: &RawTensor) -> Result<(), ShapeError> {
@@ -256,13 +248,64 @@ impl RawTensor {
             self.shape(),
             other.shape()
         );
-
-        let mut t_clone = self.data.clone();
-        t_clone.scaled_add(1., &other.data);
+        let o = self.data.clone() + other.data;
         return RawTensor {
-            data: t_clone,
+            data: o,
             column_major: true,
         };
+    }
+
+    pub fn sub(&mut self, other: RawTensor) -> RawTensor {
+
+        assert_eq!(
+            self.shape(),
+            other.shape(),
+            "Tensors with different shapes cannot be subtracted {:?} + {:?}",
+            self.shape(),
+            other.shape()
+        );
+        let o = self.data.clone() - other.data;
+        return RawTensor {
+            data: o,
+            column_major: true,
+        };
+   }
+
+    pub fn mul(&mut self, other: RawTensor) -> RawTensor {
+        assert_eq!(
+            self.shape(),
+            other.shape(),
+            "Tensors with different shapes cannot be multiplied {:?} + {:?}",
+            self.shape(),
+            other.shape()
+        );
+
+        let o = self.data.clone() * other.data;
+        return RawTensor {
+            data: o,
+            column_major: true,
+        };
+    }
+
+    pub fn div(&mut self, other: RawTensor) -> RawTensor {
+        assert_eq!(
+            self.shape(),
+            other.shape(),
+            "Tensors with different shapes cannot be divided {:?} + {:?}",
+            self.shape(),
+            other.shape()
+        );
+
+        let o = self.data.clone() / other.data;
+        return RawTensor {
+            data: o,
+            column_major: true,
+        };
+    }
+
+    pub fn scale(&mut self, scale: f32) -> RawTensor {
+        let o = self.data.clone() * scale;
+        return RawTensor { data: o, column_major: false }
     }
 
     pub fn relu(&mut self) {

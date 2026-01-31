@@ -1,6 +1,7 @@
 use rand::Rng;
 use std::time::Instant;
 use tnn_core::raw_tensor::RawTensor;
+use tnn_core::tensor::Tensor;
 
 const M: usize = 2048;
 const K: usize = 2048;
@@ -46,22 +47,19 @@ fn benchmark_matmul() {
 }
 
 fn main() {
-    benchmark_matmul();
+    // benchmark_matmul();
+    let t1 = Tensor::from(RawTensor::from(
+       &[3, 3],
+       [1., 2., 3., 4., 5., 6., 7., 8., 9.].to_vec(),
+       false,
+    ));
 
-    //let t1 = Tensor::from(
-    //    &[3, 3],
-    //    [1., 2., 3., 4., 5., 6., 7., 8., 9.].to_vec(),
-    //    false,
-    //);
-    //let t2 = Tensor::from(
-    //    &[3, 3],
-    //    [1., 2., 3., 4., 5., 6., 7., 8., 9.].to_vec(),
-    //    false,
-    //);
-    //
-    //println!("TENSOR 1 - {:?}", t1.data);
-    //println!("TENSOR 2 - {:?}", t2.data);
-    //
-    //let t3 = t1.matmul(t2).unwrap();
-    //println!("t3 - {:?}", t3.data);
+    let t2 = Tensor::from(RawTensor::from(
+       &[3, 3],
+       [1., 2., 3., 4., 5., 6., 7., 8., 9.].to_vec(),
+       false,
+    ));
+    
+    let t3 = t1 / t2;
+    println!("t3 - {:?}", t3);
 }
