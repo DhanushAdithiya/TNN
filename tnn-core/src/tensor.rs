@@ -3,14 +3,14 @@ use std::ops::{Add, Mul, Sub, Div, Neg};
 
 type BackwardFn = fn(AutogradNode, AutogradNode, AutogradNode);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Tensor {
     tensor: RawTensor,
     gradient: Option<RawTensor>,
     node: Option<AutogradNode>
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AutogradNode {
     parents: Vec<Tensor>,
     backwards: BackwardFn
@@ -86,5 +86,32 @@ impl Tensor {
         return {
             Tensor { tensor: raw_tensor, gradient: Some(grad), node: None }
         }
+    }
+
+    pub fn relu(mut self) -> Self {
+        self.tensor.relu();
+        return Tensor {
+            tensor: self.tensor,
+            gradient: self.gradient,
+            node: self.node
+        }
+    }
+
+    pub fn sigmoid(mut self) -> Self {
+        self.tensor.sigmoid();
+        return  Tensor { tensor: self.tensor, gradient: self.gradient, node: self.node };
+    }
+
+    pub fn pow(self, exp: f32) -> Self {
+        let o = self.tensor.data.powf(exp);
+        return Tensor {
+            tensor: RawTensor { data: o, column_major: false },
+            gradient: self.gradient,
+            node: self.node
+        }
+    }
+
+    pub fn backwards(&mut self) {
+        todo!()
     }
 }

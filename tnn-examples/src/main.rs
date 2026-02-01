@@ -48,18 +48,9 @@ fn benchmark_matmul() {
 
 fn main() {
     // benchmark_matmul();
-    let t1 = Tensor::from(RawTensor::from(
-       &[3, 3],
-       [1., 2., 3., 4., 5., 6., 7., 8., 9.].to_vec(),
-       false,
-    ));
+    let x = Tensor::from(RawTensor::from(&[2,2], vec![1.,2.,3.,4.], false));
+        
 
-    let t2 = Tensor::from(RawTensor::from(
-       &[3, 3],
-       [1., 2., 3., 4., 5., 6., 7., 8., 9.].to_vec(),
-       false,
-    ));
-    
-    let t3 = t1 / t2;
-    println!("t3 - {:?}", t3);
+    let y = (x.clone().pow(2.0) - x.clone()).relu().sigmoid();
+    println!("{:?}", y);
 }

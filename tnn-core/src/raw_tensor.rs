@@ -309,6 +309,7 @@ impl RawTensor {
     }
 
     pub fn relu(&mut self) {
+        // TODO: Make this return a new RawTensor
         self.data.iter_mut().for_each(|x| {
             if *x < 0. {
                 *x = 0.;
