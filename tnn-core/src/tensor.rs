@@ -1,70 +1,99 @@
 use crate::raw_tensor::RawTensor;
 use std::ops::{Add, Mul, Sub, Div, Neg};
+use std::cell::RefCell;
 
 type BackwardFn = fn(AutogradNode, AutogradNode, AutogradNode);
 
 #[derive(Debug, Clone)]
 pub struct Tensor {
-    tensor: RawTensor,
+    pub tensor: RawTensor,
     gradient: Option<RawTensor>,
     node: Option<AutogradNode>
 }
 
 #[derive(Debug, Clone)]
 pub struct AutogradNode {
-    parents: Vec<Tensor>,
-    backwards: BackwardFn
+    parents: RefCell<Vec<Tensor>>,
+    sign: String,
+    // backwards: BackwardFn
 }
 
-impl Add for Tensor {
-    type Output = Self;
-    
-    fn add(mut self, rhs: Self) -> Self::Output {
-        let o = self.tensor.add(rhs.tensor);
-        return Tensor {
-            tensor: o,
-            gradient: self.gradient,
-            node: self.node
+impl<'a, 'b> Add<&'b Tensor> for &'a Tensor {
+    type Output = Tensor;
+
+    fn add(self, rhs: &'b Tensor) -> Tensor {
+        let parents = RefCell::new(vec![
+            self.clone(),
+            rhs.clone(),
+        ]);
+
+        let node = AutogradNode {
+            parents,
+            sign: "+".to_string(),
         };
-    }
-    
-}
 
-impl Sub for Tensor {
-    type Output = Self;
-    fn sub(mut self, rhs: Self) -> Self::Output {
-        let o = self.tensor.sub(rhs.tensor);
-        return Tensor {
+        let o = self.tensor.add(&rhs.tensor);
+
+        Tensor {
             tensor: o,
-            gradient: self.gradient,
-            node: self.node
-        };
-    }
-}
-
-impl Mul for Tensor {
-    type Output = Self;
-
-    fn mul(mut self, rhs: Self) -> Self::Output {
-        let o = self.tensor.mul(rhs.tensor);
-        return Tensor {
-            tensor: o,
-            gradient: self.gradient,
-            node: self.node
-        };
-    }
-}
-
-impl Div for Tensor {
-    type Output = Self;
-
-    fn div(mut self, rhs: Self) -> Self::Output {
-        let o = self.tensor.div(rhs.tensor);
-        return Tensor {
-            tensor: o,
-            gradient: self.gradient,
-            node: self.node
+            gradient: None,
+            node: Some(node),
         }
+    }
+}
+
+impl<'a, 'b> Sub<&'b Tensor> for &'a Tensor {
+    type Output = Tensor;
+
+    fn sub(self, rhs: &'b Tensor) -> Tensor {
+        let parents = RefCell::from(vec![self.clone(), rhs.clone()]);
+        let node = AutogradNode {
+            parents,
+            sign: "-".to_string()
+        };
+
+        let o = self.tensor.sub(&rhs.tensor);
+        return Tensor {
+            tensor: o,
+            gradient: None,
+            node: Some(node)
+        };
+    }
+}
+
+impl<'a, 'b> Mul<&'b Tensor> for &'a Tensor {
+    type Output = Tensor;
+
+    fn mul(self, rhs: &'b Tensor) -> Tensor {
+        let o = self.tensor.mul(&rhs.tensor);
+        let parents = RefCell::from(vec![self.clone(), rhs.clone()]);
+        let node = AutogradNode {
+            parents,
+            sign: "*".to_string()
+        };
+        return Tensor {
+            tensor: o,
+            gradient: None,
+            node: Some(node)
+        };
+    }
+}
+
+impl<'a, 'b> Div<&'b Tensor> for &'a Tensor {
+    type Output = Tensor;
+
+    fn div(self, rhs: &'b Tensor) -> Tensor {
+        let o = self.tensor.div(&rhs.tensor);
+        let parents = RefCell::from(vec![self.clone(), rhs.clone()]);
+        let node = AutogradNode {
+            parents,
+            sign: "-".to_string()
+        };
+        return Tensor {
+            tensor: o,
+            gradient: None,
+            node: Some(node)
+        };
     }
 }
 
@@ -102,12 +131,12 @@ impl Tensor {
         return  Tensor { tensor: self.tensor, gradient: self.gradient, node: self.node };
     }
 
-    pub fn pow(self, exp: f32) -> Self {
+    pub fn pow(&self, exp: f32) -> Self {
         let o = self.tensor.data.powf(exp);
         return Tensor {
             tensor: RawTensor { data: o, column_major: false },
-            gradient: self.gradient,
-            node: self.node
+            gradient: None,
+            node: None
         }
     }
 

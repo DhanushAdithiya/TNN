@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use rand::Rng;
 use std::time::Instant;
 use tnn_core::raw_tensor::RawTensor;
@@ -48,9 +50,17 @@ fn benchmark_matmul() {
 
 fn main() {
     // benchmark_matmul();
+    // let a = Tensor::from(RawTensor::from(&[2,2], vec![1.,2.,3.,4.], false));
+    // let b = Tensor::from(RawTensor::from(&[2,2], vec![1.,2.,3.,4.], false));
+
+    // let c = &a + &b;
+    // let d = &c + &a;
+
+    // println!("{:?}",d.tensor);
+
     let x = Tensor::from(RawTensor::from(&[2,2], vec![1.,2.,3.,4.], false));
         
 
-    let y = (x.clone().pow(2.0) - x.clone()).relu().sigmoid();
+    let y = (&x.pow(2.0) - &x).relu().sigmoid();
     println!("{:?}", y);
 }

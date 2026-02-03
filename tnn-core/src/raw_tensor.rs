@@ -230,7 +230,14 @@ impl RawTensor {
 
             s.spawn(|| {
                 RawTensor::block_mul_at_test(a21_s, b12_s, &mut c22, m - m_mid, k_mid, n - n_mid);
-                RawTensor::block_mul_at_test(a22_s, b22_s, &mut c22, m - m_mid, k - k_mid, n - n_mid);
+                RawTensor::block_mul_at_test(
+                    a22_s,
+                    b22_s,
+                    &mut c22,
+                    m - m_mid,
+                    k - k_mid,
+                    n - n_mid,
+                );
             });
         });
 
@@ -240,7 +247,7 @@ impl RawTensor {
         });
     }
 
-    pub fn add(&mut self, other: RawTensor) -> RawTensor {
+    pub fn add(&self, other: &RawTensor) -> RawTensor {
         assert_eq!(
             self.shape(),
             other.shape(),
@@ -248,15 +255,16 @@ impl RawTensor {
             self.shape(),
             other.shape()
         );
-        let o = self.data.clone() + other.data;
-        return RawTensor {
+
+        let o = &self.data + &other.data;
+
+        RawTensor {
             data: o,
-            column_major: true,
-        };
+            column_major: self.column_major,
+        }
     }
 
-    pub fn sub(&mut self, other: RawTensor) -> RawTensor {
-
+    pub fn sub(&self, other: &RawTensor) -> RawTensor {
         assert_eq!(
             self.shape(),
             other.shape(),
@@ -264,14 +272,14 @@ impl RawTensor {
             self.shape(),
             other.shape()
         );
-        let o = self.data.clone() - other.data;
+        let o = &self.data.clone() - &other.data;
         return RawTensor {
             data: o,
             column_major: true,
         };
-   }
+    }
 
-    pub fn mul(&mut self, other: RawTensor) -> RawTensor {
+    pub fn mul(&self, other: &RawTensor) -> RawTensor {
         assert_eq!(
             self.shape(),
             other.shape(),
@@ -280,14 +288,14 @@ impl RawTensor {
             other.shape()
         );
 
-        let o = self.data.clone() * other.data;
+        let o = &self.data.clone() * &other.data;
         return RawTensor {
             data: o,
             column_major: true,
         };
     }
 
-    pub fn div(&mut self, other: RawTensor) -> RawTensor {
+    pub fn div(&self, other: &RawTensor) -> RawTensor {
         assert_eq!(
             self.shape(),
             other.shape(),
@@ -296,7 +304,7 @@ impl RawTensor {
             other.shape()
         );
 
-        let o = self.data.clone() / other.data;
+        let o = &self.data.clone() / &other.data;
         return RawTensor {
             data: o,
             column_major: true,
@@ -305,7 +313,10 @@ impl RawTensor {
 
     pub fn scale(&mut self, scale: f32) -> RawTensor {
         let o = self.data.clone() * scale;
-        return RawTensor { data: o, column_major: false }
+        return RawTensor {
+            data: o,
+            column_major: false,
+        };
     }
 
     pub fn relu(&mut self) {
