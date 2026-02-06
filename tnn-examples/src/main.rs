@@ -58,9 +58,9 @@ fn main() {
 
     // println!("{:?}",d.tensor);
 
-    let x = Tensor::from(RawTensor::from(&[2,2], vec![1.,2.,3.,4.], false));
-        
+    let x = Tensor::from(RawTensor::from(&[2, 2], vec![1., 2., 3., 4.], false));
 
-    let y = (&x.pow(2.0) - &x).relu().sigmoid();
-    println!("{:?}", y);
+    let mut y = (&x.pow(2.0) - &x).relu().sigmoid();
+    y.backwards();
+    println!("{:?}", y.gradient);
 }

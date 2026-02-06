@@ -1,5 +1,5 @@
+use ndarray::{s, ShapeBuilder};
 use ndarray::{Array, ArrayD};
-use ndarray::{ShapeBuilder, s};
 use std::f32::consts::E;
 use std::fmt;
 use std::simd;
@@ -72,6 +72,11 @@ impl RawTensor {
     pub fn zeros(shape: &[usize]) -> RawTensor {
         let len = shape[0] * shape[1];
         return RawTensor::from(shape, vec![0.0; len], true);
+    }
+
+    pub fn ones(shape: &[usize]) -> RawTensor {
+        let len = shape[0] * shape[1];
+        return RawTensor::from(shape, vec![1.0; len], true);
     }
 
     pub fn reshape(&mut self, shape: &[usize]) {

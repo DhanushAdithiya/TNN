@@ -1,41 +1,66 @@
+#![allow(unused)]
 use crate::raw_tensor::RawTensor;
 use std::cell::RefCell;
 use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::rc::Rc;
 
 type BackwardFn = fn(AutogradNode, AutogradNode, AutogradNode);
+type ParentsRef = Vec<Rc<RefCell<Tensor>>>;
+
+#[derive(Clone, Debug)]
+enum Op {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Neg,
+    Relu,
+}
 
 #[derive(Debug, Clone)]
-pub struct Tensor<'a> {
+pub struct Tensor {
     pub tensor: RawTensor,
-    gradient: Option<RawTensor>,
-    node: Option<AutogradNode<'a>>,
+    pub gradient: Option<RawTensor>,
+    node: Option<AutogradNode>,
 }
 
 #[derive(Debug, Clone)]
-pub struct AutogradNode<'a> {
-    parents: RefCell<Vec<Tensor<'a>>>,
-    sign: String,
-    // backwards: BackwardFn
+pub struct AutogradNode {
+    parents: ParentsRef,
+    sign: Op,
+    backwards: BackwardFn,
 }
+
+
+let backwards_add = |v1: Tensor, v2: Tensor, o: Tensor| {
+    v1.gradient.unwrap().add(v2.gradient.unwrap().mul(&o.gradint.clone().unwrap()))
+    v2.gradient.unwrap().add(v1.gradient.unwrap().mul(&o.gradint.clone().unwrap()))
+};
 
 impl<'a, 'b> Add<&'b Tensor> for &'a Tensor {
     type Output = Tensor;
 
     fn add(self, rhs: &'b Tensor) -> Tensor {
-        let parents = RefCell::new(vec![self, rhs]);
+        let parents = vec![
+            Rc::new(RefCell::new(self.clone())),
+            Rc::new(RefCell::new(rhs.clone())),
+        ];
+
+        let o = self.tensor.add(&rhs.tensor);
+        let mut op = Tensor {
+            tensor: o,
+            gradient: Some(RawTensor::zeros(self.tensor.shape())),
+            node: None,
+        };
 
         let node = AutogradNode {
             parents,
-            sign: "+".to_string(),
+            sign: Op::Add,
+            backwards: backwards_add(self, rhs, op),
         };
 
-        let o = self.tensor.add(&rhs.tensor);
-
-        Tensor {
-            tensor: o,
-            gradient: None,
-            node: Some(node),
-        }
+        op.node = Some(node);
+        return op;
     }
 }
 
@@ -43,10 +68,14 @@ impl<'a, 'b> Sub<&'b Tensor> for &'a Tensor {
     type Output = Tensor;
 
     fn sub(self, rhs: &'b Tensor) -> Tensor {
-        let parents = RefCell::from(vec![self.clone(), rhs.clone()]);
+        let parents = vec![
+            Rc::new(RefCell::new(self.clone())),
+            Rc::new(RefCell::new(rhs.clone())),
+        ];
+
         let node = AutogradNode {
             parents,
-            sign: "-".to_string(),
+            sign: Op::Sub,
         };
 
         let o = self.tensor.sub(&rhs.tensor);
@@ -63,10 +92,13 @@ impl<'a, 'b> Mul<&'b Tensor> for &'a Tensor {
 
     fn mul(self, rhs: &'b Tensor) -> Tensor {
         let o = self.tensor.mul(&rhs.tensor);
-        let parents = RefCell::from(vec![self.clone(), rhs.clone()]);
+        let parents = vec![
+            Rc::new(RefCell::new(self.clone())),
+            Rc::new(RefCell::new(rhs.clone())),
+        ];
         let node = AutogradNode {
             parents,
-            sign: "*".to_string(),
+            sign: Op::Mul,
         };
         return Tensor {
             tensor: o,
@@ -81,10 +113,14 @@ impl<'a, 'b> Div<&'b Tensor> for &'a Tensor {
 
     fn div(self, rhs: &'b Tensor) -> Tensor {
         let o = self.tensor.div(&rhs.tensor);
-        let parents = RefCell::from(vec![self.clone(), rhs.clone()]);
+        let parents = vec![
+            Rc::new(RefCell::new(self.clone())),
+            Rc::new(RefCell::new(rhs.clone())),
+        ];
+
         let node = AutogradNode {
             parents,
-            sign: "-".to_string(),
+            sign: Op::Div,
         };
         return Tensor {
             tensor: o,
@@ -149,6 +185,6 @@ impl Tensor {
     }
 
     pub fn backwards(&mut self) {
-        todo!()
+        self.gradient = Some(RawTensor::ones(self.tensor.shape()))
     }
 }
