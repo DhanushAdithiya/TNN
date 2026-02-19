@@ -57,15 +57,16 @@ fn main() {
     // let d = &c + &a;
 
     // println!("{:?}",d.tensor);
-
 let x = Tensor::from(RawTensor::from(&[2, 2], vec![1., 2., 3., 4.], false));
-let y = &x + &x;  // y = x + x = 2x, so dy/dx should be 2
 
-println!("Before backward:");
-println!("x.tensor: {:?}", x.inner.borrow().tensor.data);
-println!("x.gradient: {:?}", x.inner.borrow().gradient.as_ref().unwrap().data);
-println!("y.tensor: {:?}", y.inner.borrow().tensor.data);
-println!("y.gradient: {:?}", y.inner.borrow().gradient.as_ref().unwrap().data);
+// Build expression:
+// y = ((x + 2) * (x - 1)) / x
+let two = Tensor::from(RawTensor::from(&[2, 2], vec![2., 2., 2., 2.], false));
+let one = Tensor::from(RawTensor::from(&[2, 2], vec![1., 1., 1., 1.], false));
+
+let y = &one - &two;
+
+println!("Y DATA - {:?}", y.inner.borrow().tensor);
 
 y.backward();
 
@@ -73,8 +74,4 @@ println!("\nAfter backward:");
 println!("x.gradient: {:?}", x.inner.borrow().gradient.as_ref().unwrap().data);
 println!("y.gradient: {:?}", y.inner.borrow().gradient.as_ref().unwrap().data);
 
-// Expected results:
-// y.tensor should be [2., 4., 6., 8.] (since y = x + x)
-// y.gradient should be [1., 1., 1., 1.] (set during backward initialization)
-// x.gradient should be [2., 2., 2., 2.] (since dy/dx = 2, gradient flows back twice)
 }

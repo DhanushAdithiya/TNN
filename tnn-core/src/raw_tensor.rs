@@ -248,7 +248,7 @@ impl RawTensor {
 
         return Ok(RawTensor {
             data: test_out.into_dyn(),
-            column_major: false,
+            column_major: self.column_major,
         });
     }
 
@@ -280,7 +280,7 @@ impl RawTensor {
         let o = &self.data.clone() - &other.data;
         return RawTensor {
             data: o,
-            column_major: true,
+            column_major: self.column_major,
         };
     }
 
@@ -296,7 +296,7 @@ impl RawTensor {
         let o = &self.data.clone() * &other.data;
         return RawTensor {
             data: o,
-            column_major: true,
+            column_major: self.column_major,
         };
     }
 
@@ -312,7 +312,16 @@ impl RawTensor {
         let o = &self.data.clone() / &other.data;
         return RawTensor {
             data: o,
-            column_major: true,
+            column_major: self.column_major,
+        };
+    }
+
+    pub fn neg(&self) -> RawTensor {
+        let o = self.data.clone() * -1.;
+
+        return RawTensor {
+            data: o,
+            column_major: self.column_major,
         };
     }
 
@@ -320,7 +329,7 @@ impl RawTensor {
         let o = self.data.clone() * scale;
         return RawTensor {
             data: o,
-            column_major: false,
+            column_major: self.column_major,
         };
     }
 

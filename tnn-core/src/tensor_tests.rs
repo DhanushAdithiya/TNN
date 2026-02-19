@@ -118,10 +118,10 @@ fn test_matmul_fail() {
 
 #[test]
 fn test_add() {
-    let mut t1 = RawTensor::from(&[2, 2], [1., 2., 3., 4.].to_vec(), true);
+    let t1 = RawTensor::from(&[2, 2], [1., 2., 3., 4.].to_vec(), true);
     let t2 = RawTensor::from(&[2, 2], [1., 2., 3., 4.].to_vec(), true);
 
-    let t3 = t1.add(t2);
+    let t3 = t1.add(&t2);
     let expected = array![[2., 4.], [6., 8.]].into_dyn();
     assert_eq!(t3.data.view(), expected);
 }
@@ -129,10 +129,10 @@ fn test_add() {
 #[test]
 #[should_panic]
 fn test_add_panic() {
-    let mut t1 = RawTensor::from(&[2, 2], [1., 2., 3., 4.].to_vec(), true);
+    let t1 = RawTensor::from(&[2, 2], [1., 2., 3., 4.].to_vec(), true);
     let t2 = RawTensor::from(&[3, 2], [1., 2., 3., 4., 3., 4.].to_vec(), true);
 
-    let _t3 = t1.add(t2);
+    let _t3 = t1.add(&t2);
 }
 
 #[test]
